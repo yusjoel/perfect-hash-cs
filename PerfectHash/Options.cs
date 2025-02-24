@@ -6,6 +6,9 @@ namespace PerfectHash
     {
         [Value(1)]
         public string KeysFilePath { get; set; }
+        
+        [Value(2)]
+        public string TemplateFilePath { get; set; }
 
         [Option("delimiter", Default = ", ", HelpText = "Delimiter for list items used in output, the default delimiter is ', '")]
         public string Delimiter { get; set; }
@@ -39,6 +42,9 @@ namespace PerfectHash
 
         [Option('v', "verbose", HelpText = "verbosity")]
         public bool Verbose { get; set; }
+        
+        [Option('l', "language", Default = "cs", HelpText = "cs is C#, py is Python, default is cs")]
+        public string Language { get; set; }
 
         [Option('t', "test", HelpText = "给出指定的NG, salt1, salt2，计算G")]
         public string TestData { get; set; }

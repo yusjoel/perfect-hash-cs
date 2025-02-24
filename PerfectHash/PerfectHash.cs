@@ -57,29 +57,9 @@ namespace PerfectHash
 {
     public static class PerfectHash
     {
-        public static string @__version__ = "0.4.1";
-
         public static bool verbose = false;
 
         public static int trials = 5;
-
-        public static string builtin_template(SaltHash Hash) {
-            return @"
-# =======================================================================
-# ================= Python code for perfect hash function ===============
-# =======================================================================
-
-G = [$G]
-" + Hash.Template + @"
-# ============================ Sanity check =============================
-
-K = [$K]
-assert len(K) == $NK
-
-for h, k in enumerate(K):
-    assert perfect_hash(k) == h
-";
-        }
 
         ///<summary>
         /// Return hash functions f1 and f2, and G for a perfect minimal hash.
@@ -214,7 +194,7 @@ for h, k in enumerate(K):
         /// generator, and the optional keywords are formating options.
         /// The return value is the substituted code template.
         ///</summary>
-        public static string generate_code<T>(List<string> keys, string template, Options options) where T:SaltHash, new()
+        public static string generate_code<T>(List<string> keys, Options options) where T:SaltHash, new()
         {
             T f1;
             T f2;
@@ -242,56 +222,31 @@ for h, k in enumerate(K):
             Debug.Assert(f1.N == G.Length);
             int salt_len = f1.SaltLength;
             Debug.Assert(salt_len == f2.SaltLength);
-            if (string.IsNullOrEmpty(template)) {
-                template = builtin_template(f1);
-            }
 
-            string result = template.Replace("$NS", salt_len.ToString())
-                .Replace("$S1", f1.GetFormattedSalt())
-                .Replace("$S2", f2.GetFormattedSalt())
-                .Replace("$NG", G.Length.ToString())
-                .Replace("$G", Format(G, options))
-                .Replace("$NK", keys.Count.ToString())
-                .Replace("$K", Format(keys, options));
+            var codeGenerator = GetCodeGenerator(options);
+            string result = codeGenerator.GenerateCode(keys, G, f1, f2);
             return result;
         }
 
-        private static string Format<T>(IList<T> list, Options options)
+        private static CodeGenerator GetCodeGenerator(Options options)
         {
-            string delimiter = options.Delimiter;
-            int lendel = delimiter.Length;
-            StringBuilder stringBuilder = new StringBuilder();
-            int pos = 20;
-            for (var i = 0; i < list.Count; i++)
+            CodeGenerator codeGenerator = null;
+            if (options.Language == "py")
             {
-                var elt = list[i];
-                bool last = i == list.Count - 1;
-                string s = elt.ToString();
-                if (elt is string)
-                {
-                    s = $"\"{elt}\"";
-                }
-                if (pos + s.Length + lendel > options.Width)
-                {
-                    stringBuilder.Append("\n");
-                    for (int j = 0; j < options.Indent; j++)
-                    {
-                        stringBuilder.Append(" ");
-                    }
-
-                    pos = options.Indent;
-                }
-
-                stringBuilder.Append(s);
-                pos += s.Length;
-                if (!last)
-                {
-                    stringBuilder.Append(delimiter);
-                    pos += lendel;
-                }
+                codeGenerator = new PythonCodeGenerator();
             }
+            else if (options.Language == "cs")
+            {
+                codeGenerator = new CSharpCodeGenerator();
+            }
+            else
+            {
+                throw new Exception("Unknown language: " + options.Language);
+            }
+            
+            codeGenerator.LoadOptions(options);
 
-            return stringBuilder.ToString();
+            return codeGenerator;
         }
 
         ///<summary>
@@ -321,17 +276,18 @@ for h, k in enumerate(K):
             return keys;
         }
         
-        public static void Execute(string keys_file, Options options) {
-
+        public static void Execute(string keys_file, Options options)
+        {
+            verbose = options.Verbose;
             var keys = read_table(keys_file);
             string code;
             if(options.Hft == 1)
             {
-                code = generate_code<StrSaltHash>(keys, null, options);
+                code = generate_code<StrSaltHash>(keys, options);
             }
             else
             {
-                code = generate_code<IntSaltHash>(keys, null, options);
+                code = generate_code<IntSaltHash>(keys, options);
             }
 
             if (string.IsNullOrEmpty(options.Output))
